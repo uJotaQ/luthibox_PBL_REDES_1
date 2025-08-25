@@ -4,50 +4,82 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strings"
+	"sync"
 )
 
-var clients = make(map[string]net.Conn)
+var (
+	clients   = make(map[net.Conn]string) // conexão -> nome de usuário
+	clientsMu sync.Mutex
+)
 
 func main() {
-	// Escuta na porta 8080 no localhost
-	listener, err := net.Listen("tcp", "localhost:8080")
+	ln, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		panic(err)
+		fmt.Println("Erro ao iniciar servidor:", err)
+		return
 	}
-	defer listener.Close()
-	fmt.Println("Servidor TCP rodando em localhost:8080")
+	defer ln.Close()
+
+	fmt.Println("Servidor rodando na porta 8080...")
 
 	for {
-		// Aceita novas conexões
-		conn, err := listener.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
 			fmt.Println("Erro ao aceitar conexão:", err)
 			continue
 		}
-		fmt.Println("Novo cliente conectado:", conn.RemoteAddr())
 
-		conn.Write([]byte("Qual seu nome?\n"))
-
-		// Roda cada cliente em uma goroutine
-		go handleConnection(conn)
+		go handle(conn)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handle(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
-	for {
-		// Lê mensagem do cliente
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Cliente desconectado:", conn.RemoteAddr())
-			return
-		}
-		fmt.Print("Mensagem recebida: ", message)
+	// Perguntar o nome
+	conn.Write([]byte("Digite seu nome:\n"))
+	username, _ := reader.ReadString('\n')
+	username = strings.TrimSpace(username)
 
-		// Responde ao cliente
-		response := "Servidor recebeu: " + message
-		conn.Write([]byte(response))
+	// Guardar o cliente no map
+	clientsMu.Lock()
+	clients[conn] = username
+	clientsMu.Unlock()
+
+	// Avisar no chat que entrou
+	broadcast(fmt.Sprintf("%s entrou no chat\n", username), conn)
+
+	for {
+		msg, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		msg = strings.TrimSpace(msg)
+		if msg == "" {
+			continue
+		}
+
+		// Enviar para todos com o nome do autor
+		broadcast(fmt.Sprintf("[%s]: %s\n", username, msg), conn)
+	}
+
+	// Remover cliente quando sair
+	clientsMu.Lock()
+	delete(clients, conn)
+	clientsMu.Unlock()
+	broadcast(fmt.Sprintf("%s saiu do chat\n", username), conn)
+}
+
+func broadcast(message string, sender net.Conn) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+
+	for conn := range clients {
+		if conn != sender { // não mandar de volta para quem enviou
+			conn.Write([]byte(message))
+		}
 	}
 }
