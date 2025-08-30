@@ -239,7 +239,7 @@ func AbrirPacote(conn net.Conn, raridade string) {
             novo := Pacote{
                 ID:          gerarID(),
                 Raridade:    raridade,
-                Instrumento: pegarInstrumentoAleatorio(rar),
+                Instrumento: pegarInstrumentoAleatorio(raridade),
             }
             pacotesDisponiveis = append(pacotesDisponiveis, novo)
             return
