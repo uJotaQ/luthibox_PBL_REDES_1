@@ -3,25 +3,25 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
 	"sync"
-	"math/rand"
-    "time"
+	"time"
+)
+
+var (
+	players   = make(map[string]Player) // banco de "contas"
+	playersMu sync.Mutex
 )
 
 type Player struct {
-    Nickname string
-    Password string
-    Conn     net.Conn
+	Nickname     string
+	Password     string
+	Conn         net.Conn
 	Instrumentos []Instrumento
-	Tokens int
+	Tokens       int
 }
-
-var (
-    players   = make(map[string]Player) // banco de "contas"
-    playersMu sync.Mutex
-)
 
 type Ataque struct {
 	Nome      string
@@ -34,76 +34,35 @@ type Instrumento struct {
 	Ataques  [3]Ataque // cada instrumento terá 3 ataques fixos
 }
 
+type Pacote struct {
+	ID          string
+	Instrumento Instrumento
+}
+
 // Banco de dados interno
 var BancoInstrumentos []Instrumento
-
-
-
-
-
-type Pacote struct {
-    ID        string
-    Raridade  string
-    Instrumento Instrumento
-}
 
 var BancoPacotes []Pacote
 var pacotesMu sync.Mutex
 
+// func GerarPacote(raridade string) Pacote {
+// 	// Escolhe um instrumento aleatório da raridade desejada
+// 	inst := pegarInstrumentoAleatorio(raridade)
 
-func abrirPacotesFlow(player Player, raridade string) string {
-    pacotesMu.Lock()
-    defer pacotesMu.Unlock()
+// 	// Gera um ID único para o pacote (ex: A12, B45)
+// 	letras := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+// 	numeros := "0123456789"
+// 	id := string(letras[rand.Intn(len(letras))]) +
+// 		string(numeros[rand.Intn(len(numeros))]) +
+// 		string(numeros[rand.Intn(len(numeros))])
 
-    // Filtra pacotes disponíveis da raridade desejada
-    var pacotesDisponiveis []Pacote
-    for _, p := range BancoPacotes {
-        if p.Raridade == raridade {
-            pacotesDisponiveis = append(pacotesDisponiveis, p)
-        }
-    }
+// 	pacote := Pacote{
+// 		ID:          id,
+// 		Instrumento: inst,
+// 	}
 
-    if len(pacotesDisponiveis) == 0 {
-        return "Não há pacotes disponíveis dessa raridade.\n"
-    }
-
-    // Mostra até 10 pacotes com ID e preço
-    resp := "Pacotes disponíveis:\n"
-    max := 10
-    if len(pacotesDisponiveis) < 10 {
-        max = len(pacotesDisponiveis)
-    }
-
-    for i := 0; i < max; i++ {
-        resp += fmt.Sprintf("ID: %s | Preço: %d tokens\n", pacotesDisponiveis[i].ID, pacotesDisponiveis[i].Instrumento.Preco)
-    }
-
-    resp += "Digite 'PEGAR_PACOTE <ID>' para abrir um pacote.\n"
-
-    return resp
-}
-
-func GerarPacote(raridade string) Pacote {
-    // Escolhe um instrumento aleatório da raridade desejada
-    inst := pegarInstrumentoAleatorio(raridade)
-
-    // Gera um ID único para o pacote (ex: A12, B45)
-    letras := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    numeros := "0123456789"
-    id := string(letras[rand.Intn(len(letras))]) +
-        string(numeros[rand.Intn(len(numeros))]) +
-        string(numeros[rand.Intn(len(numeros))])
-
-    pacote := Pacote{
-        ID:          id,
-        Raridade:    raridade,
-        Instrumento: inst,
-    }
-
-    return pacote
-}
-
-
+// 	return pacote
+// }
 
 // Função que cria um instrumento
 func CriarInstrumento(nome, raridade string, ataques [3]Ataque) Instrumento {
@@ -208,27 +167,6 @@ func CarregarInstrumentos() {
 		saxofone, oboé, contrabaixo, banjo,
 		tambor, acordeon, ukulele,
 	)
-}
-
-func pegarInstrumentoAleatorio(raridade string) Instrumento {
-    rand.Seed(time.Now().UnixNano())
-
-    // Filtra instrumentos da raridade escolhida
-    var filtrados []Instrumento
-    for _, inst := range BancoInstrumentos {
-        if inst.Raridade == raridade {
-            filtrados = append(filtrados, inst)
-        }
-    }
-
-    // Caso não haja instrumentos da raridade, retorna um instrumento vazio
-    if len(filtrados) == 0 {
-        return Instrumento{}
-    }
-
-    // Sorteia aleatoriamente
-    indice := rand.Intn(len(filtrados))
-    return filtrados[indice]
 }
 
 func main() {
@@ -346,14 +284,7 @@ MENU:
 			conn.Write([]byte("JOGO_INICIADO\n"))
 
 		case "ABRIR_PACOTES":
-			if len(args) < 2 {
-				conn.Write([]byte("ERRO: Informe a raridade do pacote\n"))
-				continue
-			}
-			raridade := args[1]
-			resp := abrirPacotesFlow(currentPlayer, raridade)
-			conn.Write([]byte(resp))
-
+			conn.Write([]byte("EXECUTANDO CODIGO DE ABRIR PACOTES\n"))
 		case "MEUS_INSTRUMENTOS":
 			//resp := listarInstrumentos(currentPlayer)
 			//conn.Write([]byte(resp))
@@ -386,9 +317,9 @@ MENU:
 			currentPlayer.Instrumentos = append(currentPlayer.Instrumentos, selecionado.Instrumento)
 
 			// Repor novo pacote da mesma raridade
-			novoPacote := GerarPacote(selecionado.Raridade)
+			// novoPacote := GerarPacote(selecionado.Raridade)
 			pacotesMu.Lock()
-			BancoPacotes = append(BancoPacotes, novoPacote)
+			// BancoPacotes = append(BancoPacotes, novoPacote)
 			pacotesMu.Unlock()
 
 			conn.Write([]byte(fmt.Sprintf("Você abriu o pacote %s e recebeu o instrumento %s!\n", id, selecionado.Instrumento.Nome)))
@@ -397,5 +328,3 @@ MENU:
 		}
 	}
 }
-
-
