@@ -288,41 +288,6 @@ MENU:
 		case "MEUS_INSTRUMENTOS":
 			//resp := listarInstrumentos(currentPlayer)
 			//conn.Write([]byte(resp))
-
-		case "PEGAR_PACOTE":
-			if len(args) < 2 {
-				conn.Write([]byte("ERRO: Informe o ID do pacote\n"))
-				continue
-			}
-			id := args[1]
-
-			pacotesMu.Lock()
-			var selecionado *Pacote
-			for i, p := range BancoPacotes {
-				if p.ID == id {
-					selecionado = &p
-					// Remove do estoque
-					BancoPacotes = append(BancoPacotes[:i], BancoPacotes[i+1:]...)
-					break
-				}
-			}
-			pacotesMu.Unlock()
-
-			if selecionado == nil {
-				conn.Write([]byte("Pacote não encontrado ou já aberto!\n"))
-				continue
-			}
-
-			// Adiciona instrumento ao player
-			currentPlayer.Instrumentos = append(currentPlayer.Instrumentos, selecionado.Instrumento)
-
-			// Repor novo pacote da mesma raridade
-			// novoPacote := GerarPacote(selecionado.Raridade)
-			pacotesMu.Lock()
-			// BancoPacotes = append(BancoPacotes, novoPacote)
-			pacotesMu.Unlock()
-
-			conn.Write([]byte(fmt.Sprintf("Você abriu o pacote %s e recebeu o instrumento %s!\n", id, selecionado.Instrumento.Nome)))
 		default:
 			conn.Write([]byte("COMANDO_INVALIDO\n"))
 		}
