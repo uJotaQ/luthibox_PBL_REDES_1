@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func client_main() {
+func main() {
 	address := "localhost:8080"
 	if len(os.Args) > 1 {
 		address = os.Args[1]
