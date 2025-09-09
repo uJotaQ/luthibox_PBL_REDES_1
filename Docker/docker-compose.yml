@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  luthibox-server:
+    build: ..
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../:/app
+    command: ["./luthibox"]
+
+  luthibox-client-1:
+    build: ..
+    depends_on:
+      - luthibox-server
+    stdin_open: true
+    tty: true
+    command: ["go", "run", "client.go"]
+
+  luthibox-client-2:
+    build: ..
+    depends_on:
+      - luthibox-server
+    stdin_open: true
+    tty: true
+    command: ["go", "run", "client.go"]
