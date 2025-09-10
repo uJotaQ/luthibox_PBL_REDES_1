@@ -20,7 +20,7 @@ func handleClient(conn net.Conn) {
 	}
 
 	fmt.Printf("✅ Jogador %s autenticado\n", player.Nickname)
-	conn.Write([]byte(fmt.Sprintf("Bem-vindo ao LuthiBOX, %s!\n", player.Nickname)))
+	conn.Write([]byte(fmt.Sprintf("🎮 Bem-vindo ao LuthiBOX, %s!\n", player.Nickname)))
 
 	// Main menu
 	showMainMenu(player, conn)
@@ -68,6 +68,7 @@ func authenticateClient(conn net.Conn) (*game.Player, error) {
 			}
 
 			player, _ := game.GetPlayer(nickname)
+			player.Conn = conn // Update connection
 			return player, nil
 
 		default:
@@ -76,10 +77,73 @@ func authenticateClient(conn net.Conn) (*game.Player, error) {
 	}
 }
 
+func handleBattleMove(player *game.Player, note string, conn net.Conn) {
+	// Check if player is actually in a battle
+	if !player.IsInBattle() {
+		conn.Write([]byte("❌ Você não está em uma batalha!\n"))
+		return
+	}
+
+	// Find player's active battle
+	game.BattlesMu.RLock()
+	var playerBattle *game.Battle
+	for _, battle := range game.ActiveBattles {
+		if battle.Player1.Nickname == player.Nickname || battle.Player2.Nickname == player.Nickname {
+			playerBattle = battle
+			break
+		}
+	}
+	game.BattlesMu.RUnlock()
+
+	if playerBattle == nil {
+		player.ClearBattle() // Clear inconsistent state
+		conn.Write([]byte("❌ Batalha não encontrada!\n"))
+		return
+	}
+
+	// Process the move
+	err := playerBattle.PlayNote(player, note)
+	if err != nil {
+		// Error message already sent in PlayNote
+		return
+	}
+}
+
 func showMainMenu(player *game.Player, conn net.Conn) {
 	reader := bufio.NewReader(conn)
 
 	for {
+		// Check if player is in battle
+		if player.IsInBattle() {
+			// Don't show menu, just wait for battle commands
+			opcao, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Printf("Cliente desconectado: %v\n", err)
+				return
+			}
+
+			opcao = strings.TrimSpace(opcao)
+
+			// Handle battle commands
+			if strings.HasPrefix(opcao, "PLAY_NOTE ") {
+				parts := strings.Split(opcao, " ")
+				if len(parts) == 2 {
+					note := strings.ToUpper(parts[1])
+					handleBattleMove(player, note, conn)
+					continue
+				}
+			} else if opcao == "0" {
+				conn.Write([]byte("👋 Você não pode sair durante uma batalha!\n"))
+				continue
+			} else {
+				conn.Write([]byte("🎮 Durante a batalha, use: PLAY_NOTE <A,B,C,D,E,F,G>\n"))
+				continue
+			}
+
+			continue
+		}
+
+		// Show menu only if not in battle
 		menu := `
 🎮 === LUTHIBOX - MENU PRINCIPAL ===
 1) 🎲 Jogar (Batalha 1v1)
@@ -100,6 +164,16 @@ Escolha uma opção: `
 
 		opcao = strings.TrimSpace(opcao)
 
+		// Handle battle commands (if somehow they get here)
+		if strings.HasPrefix(opcao, "PLAY_NOTE ") {
+			parts := strings.Split(opcao, " ")
+			if len(parts) == 2 {
+				note := strings.ToUpper(parts[1])
+				handleBattleMove(player, note, conn)
+				continue
+			}
+		}
+
 		switch opcao {
 		case "0":
 			conn.Write([]byte("👋 Até logo!\n"))
@@ -107,6 +181,9 @@ Escolha uma opção: `
 
 		case "1":
 			startBattle(player, conn)
+			// Don't show menu after this - player is in battle selection or queue
+			// We'll handle the flow properly now
+			continue
 
 		case "2":
 			openPackets(player, conn, reader)
@@ -124,17 +201,71 @@ Escolha uma opção: `
 }
 
 func startBattle(player *game.Player, conn net.Conn) {
-	conn.Write([]byte("🔍 Procurando oponente...\n"))
+	// First, let player choose instrument
+	if !selectInstrumentForBattle(player, conn) {
+		conn.Write([]byte("❌ Não foi possível selecionar instrumento para batalha.\n"))
+		return
+	}
+
+	conn.Write([]byte("\n🔍 Procurando oponente...\n"))
 	game.AddPlayerToBattleQueue(player)
-	// The battle will be handled by the matchmaking system
+
+	// Don't show menu - player is now in battle mode
+}
+
+func selectInstrumentForBattle(player *game.Player, conn net.Conn) bool {
+	instruments := player.GetInstruments()
+
+	if len(instruments) == 0 {
+		conn.Write([]byte("\n❌ Você não tem instrumentos para batalhar!\n"))
+		conn.Write([]byte("🎁 Abra pacotes para conseguir instrumentos.\n"))
+		return false
+	}
+
+	conn.Write([]byte(fmt.Sprintf("\n🎯 Selecione um instrumento para a batalha (%d disponíveis):\n", len(instruments))))
+
+	for i, inst := range instruments {
+		conn.Write([]byte(fmt.Sprintf("\n%d) %s (%s)\n", i+1, inst.Name, inst.Rarity)))
+		conn.Write([]byte("   Ataques:\n"))
+		for j, attack := range inst.Attacks {
+			sequence := strings.Join(attack.Sequence, "-")
+			conn.Write([]byte(fmt.Sprintf("   %d. %s: %s\n", j+1, attack.Name, sequence)))
+		}
+	}
+
+	conn.Write([]byte("\nDigite o número do instrumento (0 para cancelar): "))
+
+	reader := bufio.NewReader(conn)
+	escolha, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+
+	escolha = strings.TrimSpace(escolha)
+	if escolha == "0" {
+		return false
+	}
+
+	var instrumentIndex int
+	_, err = fmt.Sscanf(escolha, "%d", &instrumentIndex)
+	if err != nil || instrumentIndex < 1 || instrumentIndex > len(instruments) {
+		conn.Write([]byte("❌ Opção inválida!\n"))
+		return false
+	}
+
+	selectedInstrument := instruments[instrumentIndex-1]
+	player.SetSelectedInstrument(&selectedInstrument)
+
+	conn.Write([]byte(fmt.Sprintf("\n✅ %s selecionado para a batalha!\n", selectedInstrument.Name)))
+	return true
 }
 
 func openPackets(player *game.Player, conn net.Conn, reader *bufio.Reader) {
 	conn.Write([]byte("\n🎯 Escolha a raridade:\n"))
-	conn.Write([]byte("1) Comum\n"))
-	conn.Write([]byte("2) Raro\n"))
-	conn.Write([]byte("3) Épico\n"))
-	conn.Write([]byte("4) Lendário\n"))
+	conn.Write([]byte("1) Comum (10 tokens)\n"))
+	conn.Write([]byte("2) Raro (25 tokens)\n"))
+	conn.Write([]byte("3) Épico (50 tokens)\n"))
+	conn.Write([]byte("4) Lendário (100 tokens)\n"))
 	conn.Write([]byte("0) Voltar\n"))
 	conn.Write([]byte("Raridade: "))
 
@@ -171,7 +302,7 @@ func openPackets(player *game.Player, conn net.Conn, reader *bufio.Reader) {
 
 	cost := packetCost[rarity]
 	if player.GetTokens() < cost {
-		conn.Write([]byte(fmt.Sprintf("❌ Tokens insuficientes! Custa %d tokens.\n", cost)))
+		conn.Write([]byte(fmt.Sprintf("❌ Tokens insuficientes! Você tem %d, precisa de %d.\n", player.GetTokens(), cost)))
 		return
 	}
 
@@ -200,8 +331,8 @@ func openPackets(player *game.Player, conn net.Conn, reader *bufio.Reader) {
 
 	// Parse choice
 	var packetIndex int
-	fmt.Sscanf(escolha, "%d", &packetIndex)
-	if packetIndex < 1 || packetIndex > len(packets) {
+	_, err = fmt.Sscanf(escolha, "%d", &packetIndex)
+	if err != nil || packetIndex < 1 || packetIndex > len(packets) {
 		conn.Write([]byte("❌ Opção inválida!\n"))
 		return
 	}
@@ -231,6 +362,7 @@ func openPackets(player *game.Player, conn net.Conn, reader *bufio.Reader) {
 	conn.Write([]byte(fmt.Sprintf("🎸 Instrumento: %s (%s)\n",
 		openedPacket.Instrument.Name, openedPacket.Instrument.Rarity)))
 	conn.Write([]byte(fmt.Sprintf("💰 %d tokens gastos\n", cost)))
+	conn.Write([]byte(fmt.Sprintf("📊 Seus tokens agora: %d\n", player.GetTokens())))
 }
 
 func showInstruments(player *game.Player, conn net.Conn) {

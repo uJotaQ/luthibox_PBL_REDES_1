@@ -13,6 +13,8 @@ type Player struct {
 	Conn        net.Conn
 	Instruments []Instrument
 	Tokens      int
+	CurrentBattleID string 
+	SelectedInstrument  *Instrument
 	mu          sync.RWMutex
 }
 
@@ -20,6 +22,42 @@ var (
 	players   = make(map[string]*Player) // nickname -> player
 	playersMu sync.RWMutex
 )
+
+// Adicionar método para verificar se está em batalha
+func (p *Player) IsInBattle() bool {
+    p.mu.RLock()
+    defer p.mu.RUnlock()
+    return p.CurrentBattleID != ""
+}
+
+
+// Adicionar método para definir batalha atual
+func (p *Player) SetCurrentBattle(battleID string) {
+    p.mu.Lock()
+    defer p.mu.Unlock()
+    p.CurrentBattleID = battleID
+}
+
+// Adicionar método para limpar batalha
+func (p *Player) ClearBattle() {
+    p.mu.Lock()
+    defer p.mu.Unlock()
+    p.CurrentBattleID = ""
+}
+
+// Adicionar método para selecionar instrumento
+func (p *Player) SetSelectedInstrument(instrument *Instrument) {
+    p.mu.Lock()
+    defer p.mu.Unlock()
+    p.SelectedInstrument = instrument
+}
+
+// Adicionar método para obter instrumento selecionado
+func (p *Player) GetSelectedInstrument() *Instrument {
+    p.mu.RLock()
+    defer p.mu.RUnlock()
+    return p.SelectedInstrument
+}
 
 // Register new player
 func RegisterPlayer(nickname, password string, conn net.Conn) error {
