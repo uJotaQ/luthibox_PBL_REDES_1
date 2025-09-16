@@ -35,7 +35,7 @@ Os jogadores abrem pacotes para obter instrumentos raros e utilizam sequências 
 
 ---
 
-## 🏃 Como Executar  
+## 🏃 Como Executar 
 
 ### 🔹 Opção 1: Execução Local  
 
@@ -59,7 +59,7 @@ go run client.go
 go run client.go localhost:8080
 ```
 
-###🔹 Opção 2: Com Docker
+### 🔹 Opção 2: Com Docker
 
 Construir e executar com Docker Compose:
 ```bash
@@ -78,16 +78,17 @@ docker run -p 8080:8080 luthibox
 # Iniciar cliente
 docker run -it luthibox go run client.go
 ```
+---
 
-##🎮 Como Jogar
+## 🎮 Como Jogar
 
-###🔑 Autenticação
+### 🔑 Autenticação
 ```bash
 /login <nickname> <senha>
 /register <nickname> <senha>
 ```
 
-###📋 Menu Principal
+### 📋 Menu Principal
 ```bash
 🎮 === LUTHIBOX - MENU PRINCIPAL ===
 1) 🎲 Jogar (Batalha 1v1)
@@ -98,7 +99,7 @@ docker run -it luthibox go run client.go
 0) 🚪 Sair
 ```
 
-###⚔️ Sistema de Batalhas
+### ⚔️ Sistema de Batalhas
 
 Escolha um instrumento para a batalha
 
@@ -115,7 +116,9 @@ Jogador2: B
 Jogador1: G
 → Ataque "Vibrato" realizado!
 
-##🔧 Sistema de Concorrência
+---
+
+## 🔧 Sistema de Concorrência
 
 O LuthiBOX implementa um sistema thread-safe para gerenciamento de pacotes:
 
@@ -127,7 +130,9 @@ Reposição Automática: Novos pacotes são gerados após abertura
 
 Raridades: Comum, Raro, Épico e Lendário
 
-##📊 Visualização de Latência
+---
+
+## 📊 Visualização de Latência
 
 A opção 5 do menu mostra:
 
@@ -137,7 +142,9 @@ Status da conexão
 
 Teste de conectividade em tempo real
 
-##🏗️ Arquitetura do Sistema
+---
+
+## 🏗️ Arquitetura do Sistema
 ```bash
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Cliente TCP   │    │   Cliente TCP   │    │   Cliente TCP   │
@@ -165,8 +172,9 @@ Teste de conectividade em tempo real
                     │   └─────────────────┘   │
                     └─────────────────────────┘
 ```
+---
 
-##🧪 Testes de Concorrência
+## 🧪 Testes de Concorrência
 
 Para testar múltiplos jogadores simultâneos:
 ```bash
@@ -177,7 +185,7 @@ go run main.go
 go run client.go
 ```
 
-###O sistema garante:
+O sistema garante:
 
 Nenhum pacote é aberto duas vezes
 
@@ -185,7 +193,9 @@ Estoque é reposto automaticamente
 
 Operações são thread-safe
 
-##Estrutura do Projeto
+---
+
+## Estrutura do Projeto
 ```bash
 luthibox/
 ├── main.go                 # Servidor principal
@@ -206,7 +216,9 @@ luthibox/
 └── go.mod
 ```
 
-##🎯 Requisitos Atendidos
+---
+
+## 🎯 Requisitos Atendidos
 
 ✅ Comunicação bidirecional em tempo real (Sockets TCP)
 ✅ Conexão de múltiplos jogadores simultaneamente (Concorrência)
@@ -216,7 +228,9 @@ luthibox/
 ✅ Sem frameworks (Sockets nativos)
 ✅ Docker (Containerização completa)
 
-##🐛 Tratamento de Erros
+---
+
+## 🐛 Tratamento de Erros
 
 Desconexão durante batalha: Oponente ganha automaticamente
 
@@ -226,10 +240,14 @@ Jogadas inválidas: Validação de notas e turnos
 
 Autenticação: Sistema de login/registro seguro
 
-##📝 Autor
+---
 
-###João Gabriel Santos Silva – Desenvolvedor do LuthiBOX
+## 📝 Autor
 
-##📄 Licença
+### João Gabriel Santos Silva – Desenvolvedor do LuthiBOX
 
-###Este projeto é para fins educacionais como parte do PBL de Redes de Computadores.
+## 📄 Licença
+
+### Este projeto é para fins educacionais como parte do PBL de Redes de Computadores.
+
+---
