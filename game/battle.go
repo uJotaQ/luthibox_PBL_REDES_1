@@ -134,7 +134,7 @@ func (b *Battle) PlayNote(player *Player, note string) error {
 	b.Player1.Conn.Write([]byte(sequenceMessage))
 	b.Player2.Conn.Write([]byte(sequenceMessage))
 
-	// 🔥 CRÍTICO: Verificar ataques de AMBOS os jogadores
+	// CRÍTICO: Verificar ataques de AMBOS os jogadores
 	attackTriggered := false
 	var attackPlayer *Player
 	var attackName string
@@ -196,7 +196,6 @@ func (b *Battle) PlayNote(player *Player, note string) error {
 		}
 	} else {
 		// Se ataque foi acertado, o mesmo jogador continua
-		// (ou você pode decidir quem continua - vamos manter o mesmo jogador por agora)
 		currentPlayerName := b.Player1.Nickname
 		if b.CurrentTurn == 2 {
 			currentPlayerName = b.Player2.Nickname
