@@ -185,6 +185,21 @@ go run main.go
 go run client.go
 ```
 
+Para realizar teste de stress de conexão:
+```bash
+# Iniciar servidor
+go run main.go
+
+# Em outro terminal, acesse a pasta "testes":
+cd testes
+
+# Altere a variável "numClients" para escolher quantos clients irão se conectar
+const numClients = 10000
+
+# Rode o código de testes de stress:
+go run stress_sim.go
+```
+
 O sistema garante:
 
 Nenhum pacote é aberto duas vezes
