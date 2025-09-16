@@ -198,8 +198,9 @@ Operações são thread-safe
 ## Estrutura do Projeto
 ```bash
 luthibox/
-├── main.go                 # Servidor principal
-├── client.go               # Cliente terminal
+├── main.go                # Servidor principal 
+├── client/
+│   ├── client.go          # Cliente terminal
 ├── game/
 │   ├── player.go          # Gerenciamento de jogadores
 │   ├── instruments.go     # Instrumentos e ataques
