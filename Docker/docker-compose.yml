@@ -9,8 +9,8 @@ services:
     networks:
       - luthibox-network
     container_name: luthibox-server
-    stdin_open: true    # Manter STDIN aberto
-    tty: true          # Alocar pseudo-TTY
+    stdin_open: true    
+    tty: true          
     command: ["./luthibox-server"]
 
   client:
@@ -22,8 +22,8 @@ services:
     networks:
       - luthibox-network
     container_name: luthibox-client
-    stdin_open: true    # Manter STDIN aberto
-    tty: true          # Alocar pseudo-TTY
+    stdin_open: true    
+    tty: true
     command: ["./luthibox-client", "server:8080"]
 
 networks:
