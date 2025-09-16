@@ -29,6 +29,36 @@ func init() {
 	go matchmakingSystem()
 }
 
+func (b *Battle) HandlePlayerDisconnect(leaver *Player) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if !b.Active {
+		return // batalha já encerrada
+	}
+
+	var winner, loser *Player
+	loser = leaver
+	if leaver == b.Player1 {
+		winner = b.Player2
+	} else {
+		winner = b.Player1
+	}
+
+	// Notificar jogadores (se estiverem conectados)
+	if winner.Conn != nil {
+		winner.Conn.Write([]byte(fmt.Sprintf("\n🏆 Oponente desconectou! Você ganhou %d tokens!\n", 10)))
+		winner.AddTokens(10)
+	}
+	if loser.Conn != nil {
+		loser.Conn.Write([]byte("\n💀 Você perdeu por desconexão.\n"))
+	}
+
+	// Finaliza a batalha
+	b.EndBattle()
+}
+
+
 // Start matchmaking system
 func matchmakingSystem() {
 	for {
@@ -200,22 +230,14 @@ func (b *Battle) checkAttackCompletion(forPlayer *Player) string {
 		}
 	}
 
-	// DebugLog("Checking attacks for %s with instrument %s", forPlayer.Nickname, instrument.Name)
-	// DebugLog("Current sequence: %v (length: %d)", b.PlayedNotes, len(b.PlayedNotes))
-
 	// Check each attack of the instrument
 	for _, attack := range instrument.Attacks {
 		attackSequence := attack.Sequence
 		sequenceLen := len(attackSequence)
 		notesLen := len(b.PlayedNotes)
 
-		// DebugLog("Checking attack '%s' - sequence: %v (length: %d)",
-		//     attack.Name, attackSequence, sequenceLen)
-
 		// Need at least the same number of notes as the attack sequence
 		if notesLen >= sequenceLen && sequenceLen > 0 {
-			// 🔥 NOVA LÓGICA: Procurar a sequência em qualquer posição
-			// Verificar se a sequência do ataque aparece em ordem em qualquer parte
 
 			// Percorrer todas as posições possíveis onde a sequência pode começar
 			for startPos := 0; startPos <= notesLen-sequenceLen; startPos++ {
@@ -229,14 +251,12 @@ func (b *Battle) checkAttackCompletion(forPlayer *Player) string {
 				}
 
 				if match {
-					// DebugLog("Attack '%s' MATCHED at position %d!", attack.Name, startPos)
 					return attack.Name
 				}
 			}
 		}
 	}
 
-	// DebugLog("No attack matched for %s", forPlayer.Nickname)
 	return ""
 }
 
@@ -317,7 +337,6 @@ func notifyBattleStart(battle *Battle) {
 	battle.Player2.Conn.Write([]byte("⏳ Aguarde a vez do oponente...\n"))
 }
 
-// Adicionar no final de game/battle.go
 func (b *Battle) DebugInfo() {
 	fmt.Printf("=== DEBUG BATTLE INFO ===\n")
 	fmt.Printf("Battle ID: %s\n", b.ID)
@@ -346,14 +365,14 @@ func (b *Battle) DebugInfo() {
 }
 
 func (b *Battle) EndBattle() {
-    // Clear battle state for players
-    b.Player1.ClearBattle()
-    b.Player2.ClearBattle()
-    
-    // Remove battle
-    BattlesMu.Lock()
-    delete(ActiveBattles, b.ID)
-    BattlesMu.Unlock()
-    
-    b.Active = false
+	// Clear battle state for players
+	b.Player1.ClearBattle()
+	b.Player2.ClearBattle()
+
+	// Remove battle
+	BattlesMu.Lock()
+	delete(ActiveBattles, b.ID)
+	BattlesMu.Unlock()
+
+	b.Active = false
 }

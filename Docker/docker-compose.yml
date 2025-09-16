@@ -1,26 +1,31 @@
-version: '3.8'
-
+# docker/docker-compose.yml
 services:
-  luthibox-server:
-    build: ..
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     ports:
       - "8080:8080"
-    volumes:
-      - ../:/app
-    command: ["./luthibox"]
+    networks:
+      - luthibox-network
+    container_name: luthibox-server
+    stdin_open: true    # Manter STDIN aberto
+    tty: true          # Alocar pseudo-TTY
+    command: ["./luthibox-server"]
 
-  luthibox-client-1:
-    build: ..
+  client:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     depends_on:
-      - luthibox-server
-    stdin_open: true
-    tty: true
-    command: ["go", "run", "client.go"]
+      - server
+    networks:
+      - luthibox-network
+    container_name: luthibox-client
+    stdin_open: true    # Manter STDIN aberto
+    tty: true          # Alocar pseudo-TTY
+    command: ["./luthibox-client", "server:8080"]
 
-  luthibox-client-2:
-    build: ..
-    depends_on:
-      - luthibox-server
-    stdin_open: true
-    tty: true
-    command: ["go", "run", "client.go"]
+networks:
+  luthibox-network:
+    driver: bridge

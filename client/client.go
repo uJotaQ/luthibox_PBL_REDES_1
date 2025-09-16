@@ -5,19 +5,28 @@ import (
 	"fmt"
 	"net"
 	"os"
-	//"strings"
 	"time"
 )
 
-var lastPing time.Time
-
 func main() {
-	address := "localhost:8080"
+	// Host padrão: nome do serviço no docker-compose
+	address := "server:8080"
 	if len(os.Args) > 1 {
 		address = os.Args[1]
 	}
 
-	conn, err := net.Dial("tcp", address)
+	// Tentar conectar várias vezes caso o server ainda não esteja pronto
+	var conn net.Conn
+	var err error
+	for i := 0; i < 10; i++ {
+		conn, err = net.Dial("tcp", address)
+		if err == nil {
+			break
+		}
+		fmt.Println("⏳ Tentando conectar ao server...")
+		time.Sleep(1 * time.Second)
+	}
+
 	if err != nil {
 		fmt.Printf("❌ Erro ao conectar: %v\n", err)
 		os.Exit(1)
@@ -41,5 +50,4 @@ func main() {
 		input := scanner.Text()
 		conn.Write([]byte(input + "\n"))
 	}
-
 }

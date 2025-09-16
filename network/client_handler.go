@@ -20,17 +20,12 @@ func handleClient(conn net.Conn) {
 		return
 	}
 
-	// Set disconnect callback
 	player.SetDisconnectCallback(func(p *game.Player) {
-		fmt.Printf("🔄 Jogador %s se desconectou\n", p.Nickname)
-
-		// Verificar se jogador está em batalha
 		if p.IsInBattle() {
-			// Encontrar a batalha
 			game.BattlesMu.RLock()
 			var battle *game.Battle
 			for _, b := range game.ActiveBattles {
-				if b.Player1.Nickname == p.Nickname || b.Player2.Nickname == p.Nickname {
+				if b.Player1 == p || b.Player2 == p {
 					battle = b
 					break
 				}
@@ -38,8 +33,7 @@ func handleClient(conn net.Conn) {
 			game.BattlesMu.RUnlock()
 
 			if battle != nil {
-				// Finalizar batalha com vitória automática para o oponente
-				handleBattleDisconnect(battle, p)
+				battle.HandlePlayerDisconnect(p)
 			}
 		}
 	})
@@ -381,6 +375,13 @@ func openPackets(player *game.Player, conn net.Conn, reader *bufio.Reader) {
 		openedPacket.Instrument.Name, openedPacket.Instrument.Rarity)))
 	conn.Write([]byte(fmt.Sprintf("💰 %d tokens gastos\n", cost)))
 	conn.Write([]byte(fmt.Sprintf("📊 Seus tokens agora: %d\n", player.GetTokens())))
+
+	fmt.Sprintf("\n🎉 VOCÊ ABRIU O PACOTE!\n")
+	fmt.Sprintf("📦 ID: %s\n", openedPacket.ID)
+	fmt.Sprintf("🎸 Instrumento: %s (%s)\n",
+		openedPacket.Instrument.Name, openedPacket.Instrument.Rarity)
+	fmt.Sprintf("💰 %d tokens gastos\n", cost)
+	fmt.Sprintf("📊 Seus tokens agora: %d\n", player.GetTokens())
 }
 
 func showInstruments(player *game.Player, conn net.Conn) {
@@ -406,25 +407,4 @@ func showInstruments(player *game.Player, conn net.Conn) {
 func showTokens(player *game.Player, conn net.Conn) {
 	tokens := player.GetTokens()
 	conn.Write([]byte(fmt.Sprintf("\n💰 Seus Tokens: %d\n", tokens)))
-}
-
-func handleBattleDisconnect(battle *game.Battle, disconnectedPlayer *game.Player) {
-	// Determinar o vencedor (oponente)
-	var winner *game.Player
-
-	if battle.Player1.Nickname == disconnectedPlayer.Nickname {
-		winner = battle.Player2
-	} else {
-		winner = battle.Player1
-	}
-
-	// Notificar vencedor
-	winner.Conn.Write([]byte("\n🏆 VITÓRIA POR WO! O oponente se desconectou.\n"))
-	winner.Conn.Write([]byte("🎉 Você ganhou 10 tokens!\n"))
-
-	// Dar prêmio ao vencedor
-	winner.AddTokens(10)
-
-	// Finalizar batalha
-	battle.EndBattle()
 }
