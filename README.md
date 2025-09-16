@@ -262,7 +262,7 @@ Jogadas inválidas: Validação de notas e turnos
 
 Autenticação: Sistema de login/registro seguro
 
-# 🎵 LuthiBOX - Apresentação Técnica (Seguindo o Barema)
+# 🎵 LuthiBOX - Apresentação Técnice
 
 ## 🎯 **1. Arquitetura**
 
