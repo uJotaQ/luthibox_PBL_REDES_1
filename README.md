@@ -222,11 +222,17 @@ luthibox/
 ## 🎯 Requisitos Atendidos
 
 ✅ Comunicação bidirecional em tempo real (Sockets TCP)
+
 ✅ Conexão de múltiplos jogadores simultaneamente (Concorrência)
+
 ✅ Visualizar atraso da comunicação (Estatísticas de conexão)
+
 ✅ Partidas 1v1 (Matchmaking automático)
+
 ✅ Sistema de pacotes justo (Thread-safe, estoque global)
+
 ✅ Sem frameworks (Sockets nativos)
+
 ✅ Docker (Containerização completa)
 
 ---
