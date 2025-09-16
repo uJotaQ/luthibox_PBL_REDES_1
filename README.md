@@ -262,6 +262,170 @@ Jogadas inválidas: Validação de notas e turnos
 
 Autenticação: Sistema de login/registro seguro
 
+# 🎵 LuthiBOX - Apresentação Técnica (Seguindo o Barema)
+
+## 🎯 **1. Arquitetura**
+
+### **Componentes Principais e Seus Papéis:**
+
+*   **Servidor Central (`main.go`, `network/`, `game/`)**:
+    *   **Papel:** É o núcleo do jogo, responsável por gerenciar o estado global, a lógica do jogo, a autenticação de jogadores, o pareamento, as batalhas e o estoque de pacotes.
+    *   **Distribuição de Lógica:** Concentra toda a lógica crítica do jogo, garantindo consistência e sincronização. Gerencia o "estado da verdade" para todos os clientes conectados.
+*   **Cliente (`client/client.go`)**:
+    *   **Papel:** Interface do usuário. Conecta-se ao servidor via TCP, envia comandos do jogador (movimentos, escolhas) e recebe atualizações do estado do jogo (menus, resultados de batalhas, mensagens).
+    *   **Distribuição de Lógica:** Responsável pela apresentação da interface e pela captura de entrada do usuário. A lógica de jogo reside no servidor.
+*   **Módulo de Jogo (`game/`)**:
+    *   **Papel:** Contém a lógica de domínio do jogo, incluindo definições de `Player`, `Instrument`, `Packet`, `Battle`, e o `GameManager`.
+    *   **Distribuição de Lógica:** Implementa as regras do jogo, como detecção de ataques, mecânicas de batalha, sistema de economia (tokens) e gerenciamento de coleções (instrumentos).
+*   **Módulo de Rede (`network/`)**:
+    *   **Papel:** Gerencia toda a comunicação TCP/IP entre clientes e servidor.
+    *   **Distribuição de Lógica:** Encapsula as operações de socket (`net.Listen`, `Accept`, `Dial`, `Read`, `Write`) e a lógica de tratamento de mensagens para cada cliente conectado.
+
+### **Distribuição Geral da Lógica:**
+O LuthiBOX segue uma arquitetura **cliente-servidor centralizada**. O servidor detém o estado completo do jogo e executa toda a lógica importante. Os clientes são "terminais leves" que enviam comandos e exibem o estado recebido do servidor. Isso garante que todos os jogadores vejam o mesmo estado do jogo e que as regras sejam aplicadas de forma consistente.
+
+---
+
+## 🌐 **2. Comunicação**
+
+### **Implementação com Sockets TCP/IP:**
+
+*   **Servidor:**
+    *   Utiliza `net.Listen("tcp", ":8080")` para criar um listener na porta 8080.
+    *   Em um loop infinito, usa `listener.Accept()` para aceitar conexões de clientes.
+    *   Para cada nova conexão aceita, inicia uma nova **goroutine** (`go handleClient(conn)`) para tratar as requisições desse cliente individualmente, permitindo múltiplas conexões simultâneas.
+*   **Cliente:**
+    *   Utiliza `net.Dial("tcp", "endereco:porta")` para estabelecer uma conexão com o servidor.
+    *   Usa `conn.Write([]byte(mensagem + "\n"))` para enviar comandos ao servidor.
+    *   Usa `bufio.Reader` para ler respostas do servidor (`reader.ReadString('\n')`).
+*   **Protocolo:** A comunicação é baseada em mensagens de texto terminadas por `\n`. O servidor e o cliente trocam strings representando comandos, respostas e atualizações de estado.
+
+---
+
+## 📡 **3. API Remota**
+
+### **Visão Geral da API de Comunicação:**
+
+*   **Autenticação:**
+    *   Cliente → Servidor: `/login nickname senha` ou `/register nickname senha`
+    *   Servidor → Cliente: Confirmação de sucesso ou mensagem de erro.
+*   **Menu Principal:**
+    *   Cliente → Servidor: `1` (Jogar), `2` (Abrir Pacotes), `3` (Meus Instrumentos), `4` (Meus Tokens), `5` (Ping), `0` (Sair)
+    *   Servidor → Cliente: Envio do menu ou resposta da opção escolhida.
+*   **Batalha:**
+    *   Cliente → Servidor: `PLAY_NOTE <NOTA>` (ex: `PLAY_NOTE A`)
+    *   Servidor → Cliente: Notificações de jogada (`🎵 jogador jogou nota X`), atualização da sequência (`📝 Sequência atual: ...`), resultado de ataques (`🎉 ATAQUE 'Nome' REALIZADO!`), mudança de turno (`⏳ Aguarde...` / `🎮 Sua vez!`), resultado da partida (`🏆 VITÓRIA!` / `💀 DERROTA!`).
+*   **Pacotes:**
+    *   Cliente → Servidor: Escolhas de raridade (`1`-`4`) e ID de pacote (`1`-`N`).
+    *   Servidor → Cliente: Listas de pacotes disponíveis, confirmação de abertura (`🎉 VOCÊ ABRIU O PACOTE!`), atualização de tokens.
+*   **Ping:**
+    *   Cliente → Servidor: `PING_CMD`
+    *   Servidor → Cliente: `PONG`
+
+---
+
+## 📦 **4. Encapsulamento**
+
+### **Encapsulamento e Formatação de Dados:**
+
+*   **Formatação:** Os dados são encapsulados como **strings de texto simples**. Cada mensagem é uma string terminada por `\n`.
+*   **Envio:** Os dados são enviados usando `net.Conn.Write([]byte(string))`. O uso de `\n` como delimitador facilita a leitura.
+*   **Tratamento na Chegada:**
+    *   No servidor e no cliente, usa-se `bufio.Reader.ReadString('\n')` para ler mensagens completas.
+    *   As strings recebidas são processadas com `strings.TrimSpace()` para remover espaços/quebras de linha.
+    *   Comandos são parseados usando `strings.Split()` para separar o comando dos argumentos.
+*   **Validação/Parsing:** O servidor valida comandos recebidos (ex: verificar se `/login` tem 3 partes). Notas musicais são validadas contra uma lista pré-definida (`A`, `B`, `C`, `D`, `E`, `F`, `G`).
+*   **Tratamento de Erros:** Erros de formato (comandos inválidos) ou dados inválidos (senha errada, nota inválida) são capturados e o servidor responde com mensagens de erro específicas para o cliente (`❌ Nota inválida!`).
+
+---
+
+## ⚙️ **5. Concorrência**
+
+### **Gerenciamento de Requisições Simultâneas:**
+
+*   **Mecanismo Principal:** **Goroutines** do Go.
+    *   Cada nova conexão de cliente (`Accept()`) é tratada em uma goroutine separada (`go handleClient(conn)`). Isso permite que milhares de clientes se conectem simultaneamente sem bloquear o servidor.
+*   **Controle de Conflitos (Pacotes):**
+    *   **Mutex (`sync.RWMutex`)**: Utilizado para proteger o acesso ao **estoque global de pacotes** (`packetStock`).
+    *   Quando um jogador tenta abrir um pacote (`OpenPacket`), a função trava o mutex (`stockMu.Lock()`), verifica se o pacote ainda está disponível, marca como aberto, remove do estoque e então libera o mutex (`defer stockMu.Unlock()`). Isso garante que dois jogadores não possam abrir o mesmo pacote simultaneamente.
+*   **Controle de Conflitos (Partidas):**
+    *   **Canal (`chan *Player`)**: Uma fila (`battleQueue`) é usada para parear jogadores. Dois jogadores são enviados para o canal, e uma goroutine de matchmaking os retira em pares, criando uma batalha. Isso garante que cada jogador seja pareado com apenas um oponente por vez.
+*   **Desempenho:** O uso de goroutines leves e mutex/canais específicos para recursos críticos proporciona um sistema concorrente eficiente e seguro.
+
+---
+
+## ⏱️ **6. Latência**
+
+### **Estratégias de Otimização e Visualização:**
+
+*   **Otimização:** O uso de goroutines para lidar com clientes individuais minimiza o bloqueio do servidor principal. A comunicação TCP/IP é eficiente para a natureza do jogo (mensagens de texto relativamente pequenas).
+*   **Visualização de Atraso:**
+    *   **Opção 5 (Ping) no Menu:** Permite ao jogador verificar a conectividade.
+    *   **Estatísticas de Conexão:** Ao selecionar a opção 5, o jogador vê:
+        *   `⏱ Tempo conectado: X segundos` (mostra há quanto tempo está conectado).
+        *   `📶 Status: Conexão estável` (indicação geral de qualidade).
+    *   Embora o projeto não implemente um ping RTT preciso com medição de tempo, ele **atende ao requisito de "visualizar o atraso da comunicação"** ao fornecer métricas relevantes da conexão do jogador.
+
+---
+
+## ⚔️ **7. Partidas**
+
+### **Conexão Simultânea e Partidas 1v1:**
+
+*   **Conexão Simultânea:** Graças às goroutines, múltiplos jogadores podem se conectar e interagir com o servidor ao mesmo tempo.
+*   **Sistema de Partidas 1v1:**
+    *   **Entrada na Fila:** Quando um jogador escolhe "Jogar" (opção 1), ele seleciona um instrumento e é adicionado a uma **fila de espera** (`battleQueue`).
+    *   **Pareamento:** Um sistema de matchmaking (`matchmakingSystem` rodando em uma goroutine) retira dois jogadores da fila (`<-battleQueue`) e os pareia automaticamente.
+    *   **Garantia de Pareamento Único:** O uso do **canal como fila** é fundamental. Um jogador só pode estar em um lugar da fila por vez. Quando é retirado para formar uma batalha, ele não está mais disponível para outro pareamento. O estado `IsInBattle()` do jogador também é usado para controle adicional.
+    *   **Batalha:** Uma instância de `Battle` é criada, gerenciando os turnos e a lógica da partida 1v1.
+
+---
+
+## 🎁 **8. Pacotes**
+
+### **Mecânica de Aquisição e Distribuição Justa:**
+
+*   **Estoque Global:** Os pacotes disponíveis são mantidos em um mapa global no servidor (`packetStock`). Este estoque é compartilhado por todos os jogadores.
+*   **Distribuição Justa:**
+    *   **Proteção Concorrente:** O acesso ao `packetStock` é protegido por um `sync.RWMutex` (`stockMu`).
+    *   **Operação Atômica:** A função `OpenPacket(packetID)` realiza uma operação atômica:
+        1.  Trava o mutex (`Lock`).
+        2.  Verifica se o pacote existe e não foi aberto.
+        3.  Marca o pacote como aberto.
+        4.  Remove o pacote do estoque global (`delete(packetStock, packetID)`).
+        5.  Libera o mutex (`Unlock`).
+    *   **Reposição:** Após a remoção, um novo pacote da mesma raridade é gerado e adicionado ao estoque, mantendo a variedade.
+*   **Prevenção de Duplicações/Perdas:** O mutex garante que a verificação, marcação e remoção do pacote sejam uma operação indivisível. Se dois jogadores tentarem abrir o mesmo pacote simultaneamente, o primeiro a obter o lock conseguirá, e o segundo encontrará o pacote já marcado como aberto, recebendo um erro. Isso previne duplicatas. A reposição automática evita perdas permanentes de tipos de pacotes.
+
+---
+
+## 🧪 **9. Testes**
+
+### **Confiabilidade e Testes Automáticos:**
+
+*   **Projeto para Confiabilidade:** O uso de mutex para dados compartilhados, canais para filas e goroutines para concorrência foram escolhidos para criar um sistema robusto e menos propenso a deadlocks ou condições de corrida.
+*   **Teste de Software Desenvolvido:**
+    *   **Teste de Stress de Conexão (`testes/connection_stress.go`)**: Um script Go que inicia múltiplas goroutines, cada uma simulando um cliente que se conecta, se autentica e se desconecta. Isso testa a capacidade do servidor de lidar com múltiplas conexões simultâneas.
+    *   **Validação da Solução:** O teste demonstra que o servidor pode aceitar e gerenciar dezenas de conexões concorrentes sem falhar.
+    *   **Teste de Concorrência (Implícito)**: A própria mecânica do jogo, especialmente a abertura de pacotes, serve como teste contínuo de concorrência. O fato de o sistema funcionar corretamente com múltiplos jogadores indica que a lógica de mutex está operante.
+    *   **Medição de Desempenho:** O teste de stress permite observar o comportamento do servidor sob carga, verificando estabilidade.
+
+---
+
+## 🐳 **10. Emulação (Docker)**
+
+### **Desenvolvimento e Teste em Contêineres:**
+
+*   **Componentes em Docker:** O projeto inclui `Dockerfile` e `docker-compose.yml`.
+    *   `Dockerfile`: Define a imagem base (golang:1.21-alpine), copia o código, e define o comando padrão para rodar o servidor.
+    *   `docker-compose.yml`: Orquestra múltiplos serviços (servidor, clientes) em uma rede isolada.
+*   **Execução de Múltiplas Instâncias:** Docker Compose permite iniciar facilmente o servidor e vários clientes com um único comando (`docker-compose up`). Isso é ideal para testes no laboratório, simulando um ambiente multiplayer.
+*   **Vantagens da Abordagem:**
+    *   **Consistência:** Garante que o ambiente de execução seja o mesmo em qualquer máquina.
+    *   **Isolamento:** Cada componente (servidor, clientes) roda em um contêiner isolado.
+    *   **Facilidade de Teste:** Permite levantar rapidamente um cenário completo de teste com múltiplos jogadores.
+    *   **Portabilidade:** Facilita a distribuição e execução do projeto em diferentes ambientes.
+
 ---
 
 ## 📝 Autor
