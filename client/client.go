@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	//"strings"
+	"time"
 )
+
+var lastPing time.Time
 
 func main() {
 	address := "localhost:8080"
@@ -26,14 +30,16 @@ func main() {
 	go func() {
 		scanner := bufio.NewScanner(conn)
 		for scanner.Scan() {
-			fmt.Println(scanner.Text())
+			msg := scanner.Text()
+			fmt.Println(msg)
 		}
 	}()
 
 	// Send user input
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		input := scanner.Text() + "\n"
-		conn.Write([]byte(input))
+		input := scanner.Text()
+		conn.Write([]byte(input + "\n"))
 	}
+
 }

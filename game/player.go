@@ -4,18 +4,21 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 )
 
 type Player struct {
-	ID          string
-	Nickname    string
-	Password    string
-	Conn        net.Conn
-	Instruments []Instrument
-	Tokens      int
-	CurrentBattleID string 
-	SelectedInstrument  *Instrument
-	mu          sync.RWMutex
+	ID                 string
+	Nickname           string
+	Password           string
+	Conn               net.Conn
+	Instruments        []Instrument
+	Tokens             int
+	CurrentBattleID    string
+	SelectedInstrument *Instrument
+	DisconnectCallback func(*Player)
+	ConnectionTime     time.Time
+	mu                 sync.RWMutex
 }
 
 var (
@@ -23,40 +26,51 @@ var (
 	playersMu sync.RWMutex
 )
 
-// Adicionar método para verificar se está em batalha
-func (p *Player) IsInBattle() bool {
-    p.mu.RLock()
-    defer p.mu.RUnlock()
-    return p.CurrentBattleID != ""
+func (p *Player) UpdateConnection(conn net.Conn) {
+    p.mu.Lock()
+    defer p.mu.Unlock()
+    p.Conn = conn
+    p.ConnectionTime = time.Now()
 }
 
+func (p *Player) SetDisconnectCallback(callback func(*Player)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.DisconnectCallback = callback
+}
+
+func (p *Player) IsInBattle() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.CurrentBattleID != ""
+}
 
 // Adicionar método para definir batalha atual
 func (p *Player) SetCurrentBattle(battleID string) {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-    p.CurrentBattleID = battleID
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.CurrentBattleID = battleID
 }
 
 // Adicionar método para limpar batalha
 func (p *Player) ClearBattle() {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-    p.CurrentBattleID = ""
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.CurrentBattleID = ""
 }
 
 // Adicionar método para selecionar instrumento
 func (p *Player) SetSelectedInstrument(instrument *Instrument) {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-    p.SelectedInstrument = instrument
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.SelectedInstrument = instrument
 }
 
 // Adicionar método para obter instrumento selecionado
 func (p *Player) GetSelectedInstrument() *Instrument {
-    p.mu.RLock()
-    defer p.mu.RUnlock()
-    return p.SelectedInstrument
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.SelectedInstrument
 }
 
 // Register new player
@@ -69,11 +83,12 @@ func RegisterPlayer(nickname, password string, conn net.Conn) error {
 	}
 
 	player := &Player{
-		ID:       fmt.Sprintf("PLAYER_%d", len(players)),
-		Nickname: nickname,
-		Password: password,
-		Conn:     conn,
-		Tokens:   100, // Starting tokens
+		ID:             fmt.Sprintf("PLAYER_%d", len(players)),
+		Nickname:       nickname,
+		Password:       password,
+		Conn:           conn,
+		Tokens:         100,        // Starting tokens
+		ConnectionTime: time.Now(), // Adicionar esta linha
 	}
 
 	players[nickname] = player
