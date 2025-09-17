@@ -89,7 +89,6 @@ func AddPlayerToBattleQueue(player *Player) {
 }
 
 // Process note play in battle
-// Atualizar a função PlayNote para mostrar mais informações:
 func (b *Battle) PlayNote(player *Player, note string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

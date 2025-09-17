@@ -87,8 +87,8 @@ func RegisterPlayer(nickname, password string, conn net.Conn) error {
 		Nickname:       nickname,
 		Password:       password,
 		Conn:           conn,
-		Tokens:         100,        // Starting tokens
-		ConnectionTime: time.Now(), // Adicionar esta linha
+		Tokens:         100,        
+		ConnectionTime: time.Now(), 
 	}
 
 	players[nickname] = player
